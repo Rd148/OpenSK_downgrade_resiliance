@@ -893,7 +893,7 @@ impl CtapState {
                     .map(|s| truncate_to_char_boundary(&s, 64).to_string()),
                 cred_blob,
                 large_blob_key: large_blob_key.clone(),
-                cred_params_hash: Some(cred_params_hash),
+                cred_params_hash: Some(cred_params_hash.clone()),
             };
             storage::store_credential(env, credential_source)?;
             random_id
@@ -904,7 +904,7 @@ impl CtapState {
                 &rp_id_hash,
                 cred_protect_policy,
                 cred_blob,
-                Some(cred_params_hash),
+                Some(cred_params_hash.clone()),
             )?
         };
 
@@ -994,7 +994,7 @@ impl CtapState {
                 att_stmt: attestation_statement,
                 ep_att,
                 large_blob_key,
-                cred_params_hash,
+                cred_params_hash: Some(cred_params_hash.clone()),
             },
         ))
     }
@@ -1094,7 +1094,7 @@ impl CtapState {
             user,
             number_of_credentials: number_of_credentials.map(|n| n as u64),
             large_blob_key,
-            cred_params_hash: credential.cred_params_hash,
+            cred_params_hash: credential.cred_params_hash.clone(),
         };
         // Only returned for the first GetAssertion, not for Next calls.
         if is_next {
@@ -1538,6 +1538,7 @@ mod test {
                     att_stmt,
                     ep_att,
                     large_blob_key,
+                    ..
                 } = make_credential_response;
                 // The expected response is split to only assert the non-random parts.
                 assert_eq!(fmt, "packed");

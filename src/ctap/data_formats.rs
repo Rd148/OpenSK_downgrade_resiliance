@@ -602,7 +602,7 @@ pub struct PublicKeyCredentialSource {
     pub user_icon: Option<String>,
     pub cred_blob: Option<Vec<u8>>,
     pub large_blob_key: Option<Vec<u8>>,
-    pub cred_params_hash: Option<Vec<<u8>>,
+    pub cred_params_hash: Option<Vec<u8>>,
 }
 
 // We serialize credentials for the persistent storage using CBOR maps. Each field of a credential
