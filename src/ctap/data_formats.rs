@@ -602,6 +602,7 @@ pub struct PublicKeyCredentialSource {
     pub user_icon: Option<String>,
     pub cred_blob: Option<Vec<u8>>,
     pub large_blob_key: Option<Vec<u8>>,
+    pub cred_params_hash: Option<Vec<<u8>>,
 }
 
 // We serialize credentials for the persistent storage using CBOR maps. Each field of a credential
@@ -620,6 +621,7 @@ enum PublicKeyCredentialSourceField {
     CredBlob = 10,
     LargeBlobKey = 11,
     PrivateKey = 12,
+    CredParamsHash = 13,
     // When a field is removed, its tag should be reserved and not used for new fields. We document
     // those reserved tags below.
     // Reserved tags:
@@ -646,6 +648,7 @@ impl From<PublicKeyCredentialSource> for cbor::Value {
             PublicKeyCredentialSourceField::CredBlob => credential.cred_blob,
             PublicKeyCredentialSourceField::LargeBlobKey => credential.large_blob_key,
             PublicKeyCredentialSourceField::PrivateKey => credential.private_key,
+            PublicKeyCredentialSourceField::CredParamsHash => credential.cred_params_hash,
         }
     }
 }
@@ -668,6 +671,7 @@ impl TryFrom<cbor::Value> for PublicKeyCredentialSource {
                 PublicKeyCredentialSourceField::CredBlob => cred_blob,
                 PublicKeyCredentialSourceField::LargeBlobKey => large_blob_key,
                 PublicKeyCredentialSourceField::PrivateKey => private_key,
+                PublicKeyCredentialSourceField::CredParamsHash => cred_params_hash,
             } = extract_map(cbor_value)?;
         }
 
@@ -695,6 +699,8 @@ impl TryFrom<cbor::Value> for PublicKeyCredentialSource {
             (None, Some(k)) => k,
         };
 
+        let cred_params_hash = cred_params_hash.map(extract_byte_string).transpose()?;
+
         // We don't return whether there were unknown fields in the CBOR value. This means that
         // deserialization is not injective. In particular deserialization is only an inverse of
         // serialization at a given version of OpenSK. This is not a problem because:
@@ -718,6 +724,7 @@ impl TryFrom<cbor::Value> for PublicKeyCredentialSource {
             user_icon,
             cred_blob,
             large_blob_key,
+            cred_params_hash,
         })
     }
 }
@@ -2181,6 +2188,7 @@ mod test {
             user_icon: None,
             cred_blob: None,
             large_blob_key: None,
+            cred_params_hash: None,
         };
 
         assert_eq!(
@@ -2267,6 +2275,7 @@ mod test {
             user_icon: None,
             cred_blob: None,
             large_blob_key: None,
+            cred_params_hash: None,
         };
 
         let source_cbor = cbor_map! {
@@ -2299,6 +2308,7 @@ mod test {
             user_icon: None,
             cred_blob: None,
             large_blob_key: None,
+            cred_params_hash: None,
         };
 
         let source_cbor = cbor_map! {

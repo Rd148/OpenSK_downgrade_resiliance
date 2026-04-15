@@ -81,6 +81,7 @@ fn enumerate_credentials_response(
         user_icon,
         cred_blob: _,
         large_blob_key,
+        cred_params_hash: _,
     } = credential;
     let user = PublicKeyCredentialUserEntity {
         user_id: user_handle,
@@ -385,6 +386,7 @@ mod test {
             user_icon: Some("icon".to_string()),
             cred_blob: None,
             large_blob_key: None,
+            cred_params_hash: None,
         }
     }
 

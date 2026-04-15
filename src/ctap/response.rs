@@ -69,6 +69,7 @@ pub struct AuthenticatorMakeCredentialResponse {
     pub att_stmt: PackedAttestationStatement,
     pub ep_att: Option<bool>,
     pub large_blob_key: Option<Vec<u8>>,
+    pub cred_params_hash: Option<Vec<u8>>,
 }
 
 impl From<AuthenticatorMakeCredentialResponse> for cbor::Value {
@@ -79,6 +80,7 @@ impl From<AuthenticatorMakeCredentialResponse> for cbor::Value {
             att_stmt,
             ep_att,
             large_blob_key,
+            cred_params_hash,
         } = make_credential_response;
 
         cbor_map_options! {
@@ -87,6 +89,7 @@ impl From<AuthenticatorMakeCredentialResponse> for cbor::Value {
             0x03 => att_stmt,
             0x04 => ep_att,
             0x05 => large_blob_key,
+            0x06 => cred_params_hash,
         }
     }
 }
@@ -100,6 +103,7 @@ pub struct AuthenticatorGetAssertionResponse {
     pub number_of_credentials: Option<u64>,
     // 0x06: userSelected missing as we don't support displays.
     pub large_blob_key: Option<Vec<u8>>,
+    pub cred_params_hash: Option<Vec<u8>>,
 }
 
 impl From<AuthenticatorGetAssertionResponse> for cbor::Value {
@@ -111,6 +115,7 @@ impl From<AuthenticatorGetAssertionResponse> for cbor::Value {
             user,
             number_of_credentials,
             large_blob_key,
+            cred_params_hash,
         } = get_assertion_response;
 
         cbor_map_options! {
@@ -120,6 +125,7 @@ impl From<AuthenticatorGetAssertionResponse> for cbor::Value {
             0x04 => user,
             0x05 => number_of_credentials,
             0x07 => large_blob_key,
+            0x08 => cred_params_hash,
         }
     }
 }
@@ -368,6 +374,7 @@ mod test {
             att_stmt,
             ep_att: Some(true),
             large_blob_key: Some(vec![0x1B]),
+            cred_params_hash: None,
         };
         let response_cbor: Option<cbor::Value> =
             ResponseData::AuthenticatorMakeCredential(make_credential_response).into();
@@ -401,6 +408,7 @@ mod test {
             user: Some(user),
             number_of_credentials: Some(2),
             large_blob_key: Some(vec![0x1B]),
+            cred_params_hash: None,
         };
         let response_cbor: Option<cbor::Value> =
             ResponseData::AuthenticatorGetAssertion(get_assertion_response).into();

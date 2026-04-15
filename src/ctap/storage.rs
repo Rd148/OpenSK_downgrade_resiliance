@@ -672,6 +672,7 @@ mod test {
             user_icon: None,
             cred_blob: None,
             large_blob_key: None,
+            cred_params_hash: None,
         }
     }
 
@@ -868,6 +869,7 @@ mod test {
             user_icon: None,
             cred_blob: None,
             large_blob_key: None,
+            cred_params_hash: None,
         };
         assert_eq!(found_credential, Some(expected_credential));
     }
@@ -1162,6 +1164,7 @@ mod test {
             user_icon: Some(String::from("icon")),
             cred_blob: Some(vec![0xCB]),
             large_blob_key: Some(vec![0x1B]),
+            cred_params_hash: None,
         };
         let serialized = serialize_credential(credential.clone()).unwrap();
         let reconstructed = deserialize_credential(&serialized).unwrap();

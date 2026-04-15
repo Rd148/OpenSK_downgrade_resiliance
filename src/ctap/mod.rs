@@ -553,7 +553,8 @@ impl CtapState {
         debug_ctap!(env, "Sending response: {:#?}", response);
         match response {
             Ok(response_data) => {
-                let mut response_vec = vec![Ctap2StatusCode::CTAP2_OK as u8];
+                let mut response_vec = Vec::with_capacity(6144);
+                response_vec.push(Ctap2StatusCode::CTAP2_OK as u8);
                 if let Some(value) = response_data.into() {
                     if cbor_write(value, &mut response_vec).is_err() {
                         response_vec = vec![Ctap2StatusCode::CTAP2_ERR_VENDOR_INTERNAL_ERROR as u8];
@@ -737,6 +738,20 @@ impl CtapState {
             .ok_or(Ctap2StatusCode::CTAP2_ERR_UNSUPPORTED_ALGORITHM)?;
         let algorithm = cred_param.alg;
 
+        // Compute hash of pub_key_cred_params
+        let mut cred_params_bytes = vec![];
+
+        let params_array = cbor::Value::Array(
+            pub_key_cred_params
+                .clone()
+                .into_iter()
+                .map(cbor::Value::from)
+                .collect(),
+        );
+        cbor_write(params_array, &mut cred_params_bytes)?;
+
+        let cred_params_hash = Sha256::hash(&cred_params_bytes).to_vec();
+
         let rp_id = rp.rp_id;
         let ep_att = if let Some(enterprise_attestation) = enterprise_attestation {
             let authenticator_mode = env
@@ -878,6 +893,7 @@ impl CtapState {
                     .map(|s| truncate_to_char_boundary(&s, 64).to_string()),
                 cred_blob,
                 large_blob_key: large_blob_key.clone(),
+                cred_params_hash: Some(cred_params_hash),
             };
             storage::store_credential(env, credential_source)?;
             random_id
@@ -888,6 +904,7 @@ impl CtapState {
                 &rp_id_hash,
                 cred_protect_policy,
                 cred_blob,
+                Some(cred_params_hash),
             )?
         };
 
@@ -920,8 +937,9 @@ impl CtapState {
             cbor_write(extensions_output, &mut auth_data)?;
         }
 
-        let mut signature_data = auth_data.clone();
-        signature_data.extend(client_data_hash);
+        let mut signature_data = Vec::with_capacity(auth_data.len() + client_data_hash.len());
+        signature_data.extend_from_slice(&auth_data);
+        signature_data.extend_from_slice(&client_data_hash);
 
         let attestation_id = if ep_att {
             Some(attestation_store::Id::Enterprise)
@@ -976,6 +994,7 @@ impl CtapState {
                 att_stmt: attestation_statement,
                 ep_att,
                 large_blob_key,
+                cred_params_hash,
             },
         ))
     }
@@ -1040,8 +1059,9 @@ impl CtapState {
             _ => None,
         };
 
-        let mut signature_data = auth_data.clone();
-        signature_data.extend(client_data_hash);
+        let mut signature_data = Vec::with_capacity(auth_data.len() + client_data_hash.len());
+        signature_data.extend_from_slice(&auth_data);
+        signature_data.extend_from_slice(&client_data_hash);
         let signature = credential
             .private_key
             .sign_and_encode(env, &signature_data)?;
@@ -1074,6 +1094,7 @@ impl CtapState {
             user,
             number_of_credentials: number_of_credentials.map(|n| n as u64),
             large_blob_key,
+            cred_params_hash: credential.cred_params_hash,
         };
         // Only returned for the first GetAssertion, not for Next calls.
         if is_next {
@@ -1765,6 +1786,7 @@ mod test {
             user_icon: None,
             cred_blob: None,
             large_blob_key: None,
+            cred_params_hash: None,
         };
         assert!(storage::store_credential(&mut env, excluded_credential_source).is_ok());
 
@@ -2625,6 +2647,7 @@ mod test {
             user_icon: None,
             cred_blob: None,
             large_blob_key: None,
+            cred_params_hash: None,
         };
         assert!(storage::store_credential(&mut env, credential).is_ok());
 
@@ -2685,6 +2708,7 @@ mod test {
             user_icon: None,
             cred_blob: None,
             large_blob_key: None,
+            cred_params_hash: None,
         };
         assert!(storage::store_credential(&mut env, credential).is_ok());
 
@@ -2813,6 +2837,7 @@ mod test {
             user_icon: None,
             cred_blob: Some(vec![0xCB]),
             large_blob_key: None,
+            cred_params_hash: None,
         };
         assert!(storage::store_credential(&mut env, credential).is_ok());
 
@@ -2940,6 +2965,7 @@ mod test {
             user_icon: None,
             cred_blob: None,
             large_blob_key: Some(vec![0x1C; 32]),
+            cred_params_hash: None,
         };
         assert!(storage::store_credential(&mut env, credential).is_ok());
 
@@ -3226,6 +3252,7 @@ mod test {
             user_icon: None,
             cred_blob: None,
             large_blob_key: None,
+            cred_params_hash: None,
         };
         assert!(storage::store_credential(&mut env, credential_source).is_ok());
         assert!(storage::count_credentials(&mut env).unwrap() > 0);
@@ -3618,6 +3645,7 @@ mod test {
             user_icon: Some("icon".to_string()),
             cred_blob: None,
             large_blob_key: None,
+            cred_params_hash: None,
         };
 
         let mut ctap_state = CtapState::new(&mut env, CtapInstant::new(0));
