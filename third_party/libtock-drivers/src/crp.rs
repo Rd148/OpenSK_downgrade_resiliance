@@ -18,6 +18,8 @@ pub enum ProtectionLevel {
     /// At this level, only JTAG/SWD are disabled but other debugging
     /// features may still be enabled.
     JtagDisabled = 2,
+    /// Sets APPROTECT.DISABLE to SwDisable
+    SwDisable = 3,
     /// This is the maximum level of protection the chip supports.
     /// At this level, JTAG and all other features are expected to be
     /// disabled and only a full chip erase may allow to recover from

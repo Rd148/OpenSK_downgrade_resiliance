@@ -216,6 +216,11 @@ impl kernel::Platform for Platform {
 pub unsafe fn reset_handler() {
     // Loads relocations and clears BSS
     nrf52840::init();
+
+    // Disable firmware protection
+    let uicr = nrf52840::uicr::Uicr::new();
+    uicr.set_sw_disable();
+
     let ppi = static_init!(nrf52840::ppi::Ppi, nrf52840::ppi::Ppi::new());
     // Initialize chip peripheral drivers
     let nrf52840_peripherals = static_init!(

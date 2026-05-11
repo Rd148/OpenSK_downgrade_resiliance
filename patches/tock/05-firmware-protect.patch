@@ -202,10 +202,10 @@ index 925b4ba41..919638c5d 100644
  pub mod ft6x06;
  pub mod fxos8700cq;
 diff --git a/chips/nrf52/src/uicr.rs b/chips/nrf52/src/uicr.rs
-index 788533210..655a98d5b 100644
+index 788533210..9b87cfd20 100644
 --- a/chips/nrf52/src/uicr.rs
 +++ b/chips/nrf52/src/uicr.rs
-@@ -1,12 +1,14 @@
+@@ -1,15 +1,19 @@
  //! User information configuration registers
  
  use enum_primitive::cast::FromPrimitive;
@@ -220,13 +220,81 @@ index 788533210..655a98d5b 100644
  
  const UICR_BASE: StaticRef<UicrRegisters> =
      unsafe { StaticRef::new(0x10001000 as *const UicrRegisters) };
-@@ -217,3 +219,49 @@ impl Uicr {
-         self.registers.approtect.write(ApProtect::PALL::ENABLED);
++const APPROTECT_BASE: StaticRef<ApProtectRegisters> =
++    unsafe { StaticRef::new(0x40000000 as *const ApProtectRegisters) };
+ 
+ register_structs! {
+     UicrRegisters {
+@@ -41,6 +45,16 @@ register_structs! {
      }
  }
+ 
++register_structs! {
++    ApProtectRegisters {
++        (0x000 => _reserved),
++        (0x550 => forceprotect: ReadWrite<u32, ApProtectForce::Register>),
++        (0x554 => _reserved2),
++        (0x558 => disable: ReadWrite<u32, ApProtectDisable::Register>),
++        (0x55c => @END),
++    }
++}
++
+ register_bitfields! [u32,
+     /// Task register
+     Pselreset [
+@@ -112,11 +126,22 @@ register_bitfields! [u32,
+             V3_3 = 5,
+             DEFAULT = 7
+         ]
++    ],
++    ApProtectForce [
++        FORCEPROTECT OFFSET(0) NUMBITS(8) [
++            FORCE = 0x0
++        ]
++    ],
++    ApProtectDisable [
++        SWDISABLE OFFSET(0) NUMBITS(8) [
++            DISABLED = 0x5A
++        ]
+     ]
+ ];
+ 
+ pub struct Uicr {
+     registers: StaticRef<UicrRegisters>,
++    approtect_registers: StaticRef<ApProtectRegisters>,
+ }
+ 
+ #[derive(Copy, Clone, PartialEq)]
+@@ -154,6 +179,7 @@ impl Uicr {
+     pub const fn new() -> Uicr {
+         Uicr {
+             registers: UICR_BASE,
++            approtect_registers: APPROTECT_BASE,
+         }
+     }
+ 
+@@ -216,4 +242,68 @@ impl Uicr {
+     pub fn set_ap_protect(&self) {
+         self.registers.approtect.write(ApProtect::PALL::ENABLED);
+     }
++
++    pub fn set_sw_disable(&self) {
++        self.approtect_registers.disable.write(ApProtectDisable::SWDISABLE::DISABLED);
++    }
++
++    pub fn is_sw_disable_active(&self) -> bool {
++        self.approtect_registers
++            .disable
++            .matches_all(ApProtectDisable::SWDISABLE::DISABLED)
++    }
++}
 +
 +impl hil::firmware_protection::FirmwareProtection for Uicr {
 +    fn get_protection(&self) -> ProtectionLevel {
++        if self.is_sw_disable_active() {
++            return ProtectionLevel::SwDisable;
++        }
++
 +        let ap_protect_state = self.is_ap_protect_enabled();
 +        let cpu_debug_state = self
 +            .registers
@@ -253,6 +321,10 @@ index 788533210..655a98d5b 100644
 +            self.set_ap_protect();
 +        }
 +
++        if level >= ProtectionLevel::SwDisable {
++            self.set_sw_disable();
++        }
++
 +        if level >= ProtectionLevel::FullyLocked {
 +            // Prevent CPU debug and flash patching. Leaving these enabled could
 +            // allow to circumvent protection.
@@ -269,13 +341,13 @@ index 788533210..655a98d5b 100644
 +            ReturnCode::FAIL
 +        }
 +    }
-+}
+ }
 diff --git a/kernel/src/hil/firmware_protection.rs b/kernel/src/hil/firmware_protection.rs
 new file mode 100644
-index 000000000..de0824646
+index 000000000..7b1eb30fc
 --- /dev/null
 +++ b/kernel/src/hil/firmware_protection.rs
-@@ -0,0 +1,48 @@
+@@ -0,0 +1,51 @@
 +//! Interface for Firmware Protection, also called Code Readout Protection.
 +
 +use crate::returncode::ReturnCode;
@@ -289,6 +361,8 @@ index 000000000..de0824646
 +    /// At this level, only JTAG/SWD are disabled but other debugging
 +    /// features may still be enabled.
 +    JtagDisabled = 2,
++    /// Software disable of access port protection.
++    SwDisable = 3,
 +    /// This is the maximum level of protection the chip supports.
 +    /// At this level, JTAG and all other features are expected to be
 +    /// disabled and only a full chip erase may allow to recover from
@@ -301,6 +375,7 @@ index 000000000..de0824646
 +        match value {
 +            1 => ProtectionLevel::NoProtection,
 +            2 => ProtectionLevel::JtagDisabled,
++            3 => ProtectionLevel::SwDisable,
 +            0xff => ProtectionLevel::FullyLocked,
 +            _ => ProtectionLevel::Unknown,
 +        }
