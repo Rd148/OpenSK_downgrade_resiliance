@@ -31,9 +31,12 @@ import colorama
 from tqdm.auto import tqdm
 
 from fido2 import ctap
+from fido2 import cbor
 from fido2.webauthn import PublicKeyCredentialRpEntity, PublicKeyCredentialUserEntity, PublicKeyCredentialParameters
 from fido2 import hid
 from tools.configure import fatal, info, get_opensk_devices
+
+from hashlib import sha256
 
 ES256_ALGORITHM = PublicKeyCredentialParameters("public-key", -7)
 HYBRID_ALGORITHM = PublicKeyCredentialParameters("public-key", -65537)
@@ -98,16 +101,26 @@ def main(args):
   make_durations = []
   get_durations = []
 
+  authenticator = get_authenticator()
+  key_params=[HYBRID_ALGORITHM]
   for _ in tqdm(range(args.runs), file=sys.stdout):
-    authenticator = get_authenticator()
     try:
       start = datetime.datetime.now()
       result = authenticator.make_credential(
           client_data_hash=bytes(32),
           rp=PublicKeyCredentialRpEntity(id="example.com", name="Example"),
           user=PublicKeyCredentialUserEntity(id=b"diana", name="Diana"),
-          key_params=[HYBRID_ALGORITHM],
+          key_params=key_params,
       )
+
+      m = sha256()
+      m.update(cbor.encode(key_params))
+      expected_hash = m.digest() 
+      actual_hash = result.cred_params_hash
+      if expected_hash != actual_hash:
+        # This is where the logic for notifying the user of a MitM would occur
+        # and the registration would be authenticator would be deregistered
+        pass
       end = datetime.datetime.now()
       make_delta = (end - start).total_seconds() * 1000.0
       make_durations.append(make_delta)
@@ -123,6 +136,16 @@ def main(args):
           client_data_hash=bytes(32),
           allow_list=allow_list,
       )
+      end = datetime.datetime.now()
+      get_delta = (end - start).total_seconds() * 1000.0
+      get_durations.append(get_delta)
+
+      expected_hash = cbor.encode(key_params)
+      # The hash would have been calculated at registration, so no need to recalculate it here
+      if expected_hash != actual_hash:
+        # This is where the logic for notifying the user of a MitM would occur
+        # and the registration would be authenticator would be deregistered
+        pass
       end = datetime.datetime.now()
       get_delta = (end - start).total_seconds() * 1000.0
       get_durations.append(get_delta)

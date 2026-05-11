@@ -1,0 +1,1 @@
+fido2 @ git+https://github.com/Rd148/python-fido2@cred_params_hash
