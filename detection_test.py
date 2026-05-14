@@ -6,16 +6,9 @@ from tools.configure import fatal, info, get_opensk_devices
 
 from hashlib import sha256
 import random
-from colorama import Fore, Back, Style
-from tqdm.auto import tqdm
-import sys
 
 ES256_ALGORITHM = PublicKeyCredentialParameters("public-key", -7)
 HYBRID_ALGORITHM = PublicKeyCredentialParameters("public-key", -65537)
-
-def error(message: str):
-  tqdm.write(message)
-
 
 def get_authenticator():
     devices = None
@@ -35,11 +28,11 @@ def main():
     key_params=[HYBRID_ALGORITHM, ES256_ALGORITHM]
 
     mitm_controlled_key_params = [ES256_ALGORITHM]
-    mitm_controlled_iter = random.sample(range(0, 50), random.randint(10, 20))
+    mitm_controlled_iter = random.randint(0, 9)
 
-    for i in tqdm(range(0, 50), file=sys.stdout):
+    for i in range(0, 10):
         try:
-            if i in mitm_controlled_iter:
+            if i==mitm_controlled_iter:
                 result = authenticator.make_credential(
                     client_data_hash=bytes(32),
                     rp=PublicKeyCredentialRpEntity(id="exapmle.com", name="Example"),
@@ -54,23 +47,22 @@ def main():
                     key_params=key_params
                 )
 
-            encoded_key_params = cbor.encode(key_params)
+            expected_hash = cbor.encode(key_params)
             m = sha256()
-            m.update(encoded_key_params)
-            expected_hash = m.digest()
-            actual_hash = result.cred_params_hash
-            if expected_hash != actual_hash and i in mitm_controlled_iter:
-                tqdm.write(Fore.GREEN + "Successfully detected MitM attack during registration")
-                tqdm.write(f"    Expected hash: {expected_hash}")
-                tqdm.write(f"    Actual hash: {actual_hash}" + Style.RESET_ALL)
-            elif expected_hash != actual_hash and i not in mitm_controlled_iter:
-                tqdm.write(Fore.RED + "Falsly detected MitM attack during registration")
-                tqdm.write(f"    Expected hash: {expected_hash}")
-                tqdm.write(f"    Actual hash: {actual_hash}" + Style.RESET_ALL)
-            elif expected_hash == actual_hash and i in mitm_controlled_iter:
-                tqdm.write(Fore.RED + "MitM attack succeeded undetected during registration")
-                tqdm.write(f"    Expected hash: {expected_hash}")
-                tqdm.write(f"    Actual hash: {actual_hash}" + Style.RESET_ALL)
+            m.update(result.cred_params.hash)
+            actual_hash = m.digest()
+            if expected_hash != actual_hash and i == mitm_controlled_iter:
+                print("Successfully detected MitM attack during registration")
+                print(f"    Expected hash: {expected_hash}")
+                print(f"    Actual hash: {actual_hash}")
+            elif expected_hash != actual_hash and i != mitm_controlled_iter:
+                print("Falsly detected MitM attack during registration")
+                print(f"    Expected hash: {expected_hash}")
+                print(f"    Actual hash: {actual_hash}")
+            elif expected_hash == actual_hash and i == mitm_controlled_iter:
+                print("MitM attack succeeded undetected during registration")
+                print(f"    Expected hash: {expected_hash}")
+                print(f"    Actual hash: {actual_hash}")
 
         except ctap.CtapError as ex:
             message = "Failed to make a hybrid signature with OpenSK"
